@@ -10,22 +10,15 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 10000;
 const PLACE_ID = 109983668079237;
-const COOLDOWN = 15 * 60;           // 15 minuta
+const COOLDOWN = 15 * 60;
 
-// Spremi scanned servere u memoriju
 let scannedServers = {};
 
-console.log("🚀 Brainrot Backend (bez Redisa) pokrenut...");
+console.log("🚀 Brainrot Backend (TEST MODE - bez secreta) pokrenut...");
 
-const checkSecret = (req, res, next) => {
-  if (req.headers['x-api-secret'] !== process.env.API_SECRET) {
-    return res.status(401).json({ error: "Invalid secret" });
-  }
-  next();
-};
-
-// GET new server
-app.get('/get-server', checkSecret, async (req, res) => {
+// === BEZ PROVJERE SECRETA ZA TEST ===
+app.get('/get-server', async (req, res) => {
+  console.log("[GET] Zahtjev primljen");
   try {
     const response = await fetch(`https://games.roblox.com/v1/games/${PLACE_ID}/servers/Public?limit=100`);
     const data = await response.json();
@@ -37,53 +30,47 @@ app.get('/get-server', checkSecret, async (req, res) => {
     for (const s of data.data) {
       const lastScan = scannedServers[s.id] || 0;
       if (lastScan === 0 || (now - lastScan) > COOLDOWN) {
+        console.log(`[GET] Vraćam novi server: ${s.id}`);
         return res.json({ job_id: s.id });
       }
     }
     res.json({ job_id: null });
   } catch (e) {
+    console.log("[GET] Greška:", e.message);
     res.json({ job_id: null });
   }
 });
 
-// ADD server
-app.post('/add-server', checkSecret, (req, res) => {
+app.post('/add-server', async (req, res) => {
+  console.log("[ADD] Primljen zahtjev!", req.body);
   const jobId = req.body.jobId;
   if (jobId) {
     scannedServers[jobId] = Math.floor(Date.now() / 1000);
+    console.log(`[ADD] Server ${jobId} označen kao skeniran`);
   }
   res.json({ success: true });
 });
 
-// Record hop
-app.post('/record-hop', checkSecret, (req, res) => {
-  console.log("[HOP]", req.body);
+app.post('/record-hop', (req, res) => {
+  console.log("[HOP] Primljen:", req.body);
   res.json({ success: true });
 });
 
-// Bot registry (u memoriji)
-let botList = [];
-
-app.post('/scanner-register', checkSecret, (req, res) => {
-  if (req.body.username && !botList.includes(req.body.username)) {
-    botList.push(req.body.username);
-  }
+app.post('/scanner-register', (req, res) => {
+  console.log("[REGISTER] Bot:", req.body.username);
   res.json({ success: true });
 });
 
-app.get('/scanner-list', checkSecret, (req, res) => {
-  res.json({ usernames: botList });
+app.get('/scanner-list', (req, res) => {
+  res.json({ usernames: [] });
 });
 
 // WebSocket
 wss.on('connection', (ws) => {
-  console.log('✅ Novi WebSocket klijent spojen');
-  ws.on('message', (msg) => {
-    if (msg.toString() === "ping") ws.send("pong");
-  });
+  console.log('✅ WebSocket klijent spojen');
 });
 
 server.listen(PORT, () => {
-  console.log(`✅ Brainrot Backend (memorija) radi na portu ${PORT}`);
-  console.log(`🔗 WebSocket URL: wss://brainrot-api-render.onrender.com`);
+  console.log(`✅ Backend radi na portu ${PORT}`);
+  console.log(`🔗 WebSocket: wss://brainrot-api-render.onrender.com`);
 });
