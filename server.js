@@ -14,9 +14,23 @@ const COOLDOWN = 15 * 60;
 
 let scannedServers = {};
 
-console.log("🚀 Brainrot Backend (TEST MODE - bez secreta) pokrenut...");
+console.log("🚀 Brainrot Backend (TEST MODE) pokrenut...");
 
-// === BEZ PROVJERE SECRETA ZA TEST ===
+// Broadcast funkcija
+function broadcastNewServer(data) {
+  const payload = JSON.stringify({
+    type: "new_server",
+    ...data
+  });
+  wss.clients.forEach(client => {
+    if (client.readyState === 1) {
+      client.send(payload);
+    }
+  });
+  console.log(`[BROADCAST] Poslano ${data.brainrots ? data.brainrots.length : 0} brainrota`);
+}
+
+// GET SERVER
 app.get('/get-server', async (req, res) => {
   console.log("[GET] Zahtjev primljen");
   try {
@@ -36,23 +50,35 @@ app.get('/get-server', async (req, res) => {
     }
     res.json({ job_id: null });
   } catch (e) {
-    console.log("[GET] Greška:", e.message);
     res.json({ job_id: null });
   }
 });
 
+// ADD SERVER - OVDJE DODAJEMO BROADCAST
 app.post('/add-server', async (req, res) => {
   console.log("[ADD] Primljen zahtjev!", req.body);
   const jobId = req.body.jobId;
+  const brainrots = req.body.brainrots || [];
+
   if (jobId) {
     scannedServers[jobId] = Math.floor(Date.now() / 1000);
-    console.log(`[ADD] Server ${jobId} označen kao skeniran`);
   }
+
+  // VAŽNO: Broadcast prema AutoJoineru
+  if (brainrots.length > 0) {
+    broadcastNewServer({
+      jobid: jobId,
+      name: brainrots[0].name || "Unknown",
+      money: brainrots[0].gen || "0",
+      brainrots: brainrots
+    });
+  }
+
   res.json({ success: true });
 });
 
 app.post('/record-hop', (req, res) => {
-  console.log("[HOP] Primljen:", req.body);
+  console.log("[HOP]", req.body);
   res.json({ success: true });
 });
 
@@ -67,10 +93,10 @@ app.get('/scanner-list', (req, res) => {
 
 // WebSocket
 wss.on('connection', (ws) => {
-  console.log('✅ WebSocket klijent spojen');
+  console.log('✅ WebSocket klijent spojen (Pulse Joiner)');
 });
 
 server.listen(PORT, () => {
   console.log(`✅ Backend radi na portu ${PORT}`);
-  console.log(`🔗 WebSocket: wss://brainrot-api-render.onrender.com`);
+  console.log(`🔗 WebSocket URL: wss://brainrot-api-render.onrender.com`);
 });
