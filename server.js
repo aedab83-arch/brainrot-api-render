@@ -11,11 +11,12 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 10000;
 const PLACE_ID = 109983668079237;
-const COOLDOWN = 15 * 60;           // 15 minuta
+const COOLDOWN = 15 * 60;
 const SECRET = process.env.API_SECRET || "default-secret-change-me";
 
-// ==================== HTTP ENDPOINTS ====================
+console.log("🚀 Brainrot Backend pokrenut...");
 
+// Middleware za provjeru secreta
 const checkSecret = (req, res, next) => {
   if (req.headers['x-api-secret'] !== SECRET) {
     return res.status(401).json({ error: "Invalid secret" });
@@ -23,7 +24,8 @@ const checkSecret = (req, res, next) => {
   next();
 };
 
-// Get new server
+// ==================== HTTP ROUTES ====================
+
 app.get('/get-server', checkSecret, async (req, res) => {
   try {
     const response = await fetch(`https://games.roblox.com/v1/games/${PLACE_ID}/servers/Public?limit=100`);
@@ -45,7 +47,6 @@ app.get('/get-server', checkSecret, async (req, res) => {
   }
 });
 
-// Add server
 app.post('/add-server', checkSecret, async (req, res) => {
   const jobId = req.body.jobId;
   if (jobId) {
@@ -56,17 +57,17 @@ app.post('/add-server', checkSecret, async (req, res) => {
   res.json({ success: true });
 });
 
-// Record hop
 app.post('/record-hop', checkSecret, (req, res) => {
   console.log("[HOP]", req.body);
   res.json({ success: true });
 });
 
-// Bot registry
 app.post('/scanner-register', checkSecret, async (req, res) => {
   let bots = await kv.get("bot_list") || [];
-  if (req.body.username) bots.push(req.body.username);
-  await kv.set("bot_list", bots);
+  if (req.body.username) {
+    bots.push(req.body.username);
+    await kv.set("bot_list", bots);
+  }
   res.json({ success: true });
 });
 
@@ -78,31 +79,21 @@ app.get('/scanner-list', checkSecret, async (req, res) => {
 // ==================== WEBSOCKET ====================
 
 wss.on('connection', (ws) => {
-  console.log('New WebSocket client connected');
-
-  ws.on('message', (message) => {
-    if (message.toString() === "ping") {
-      ws.send("pong");
-    }
+  console.log('✅ Novi WebSocket klijent spojen');
+  ws.on('message', (msg) => {
+    if (msg.toString() === "ping") ws.send("pong");
   });
-
-  ws.on('close', () => {
-    console.log('WebSocket client disconnected');
-  });
+  ws.on('close', () => console.log('WebSocket klijent odspojen'));
 });
 
-// Broadcast function (da možeš slati "new_server" poruke)
-function broadcastNewServer(data) {
-  const payload = JSON.stringify({
-    type: "new_server",
-    ...data
-  });
+function broadcast(data) {
+  const payload = JSON.stringify(data);
   wss.clients.forEach(client => {
     if (client.readyState === 1) client.send(payload);
   });
 }
 
 server.listen(PORT, () => {
-  console.log(`🚀 Brainrot API + WebSocket running on port ${PORT}`);
-  console.log(`WebSocket URL: wss://brainrot-api-render.onrender.com`);
+  console.log(`✅ Brainrot Backend radi na portu ${PORT}`);
+  console.log(`🔗 WebSocket URL: wss://brainrot-api-render.onrender.com`);
 });
