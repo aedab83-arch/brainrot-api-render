@@ -14,20 +14,20 @@ const COOLDOWN = 15 * 60;
 
 let scannedServers = {};
 
-console.log("🚀 Brainrot Backend (TEST MODE) pokrenut...");
+console.log("🚀 Brainrot Backend pokrenut...");
 
-// Broadcast funkcija
 function broadcastNewServer(data) {
   const payload = JSON.stringify({
     type: "new_server",
-    ...data
+    jobid: data.jobId || data.jobid,           // glavni job ID
+    name: data.name || (data.brainrots && data.brainrots[0] ? data.brainrots[0].name : "Unknown"),
+    money: data.money || (data.brainrots && data.brainrots[0] ? data.brainrots[0].gen : "0"),
+    brainrots: data.brainrots || []
   });
   wss.clients.forEach(client => {
-    if (client.readyState === 1) {
-      client.send(payload);
-    }
+    if (client.readyState === 1) client.send(payload);
   });
-  console.log(`[BROADCAST] Poslano ${data.brainrots ? data.brainrots.length : 0} brainrota`);
+  console.log(`[BROADCAST] Poslano ${data.brainrots ? data.brainrots.length : 0} brainrota | JobID: ${data.jobId}`);
 }
 
 // GET SERVER
@@ -44,7 +44,7 @@ app.get('/get-server', async (req, res) => {
     for (const s of data.data) {
       const lastScan = scannedServers[s.id] || 0;
       if (lastScan === 0 || (now - lastScan) > COOLDOWN) {
-        console.log(`[GET] Vraćam novi server: ${s.id}`);
+        console.log(`[GET] Vraćam server: ${s.id}`);
         return res.json({ job_id: s.id });
       }
     }
@@ -54,9 +54,10 @@ app.get('/get-server', async (req, res) => {
   }
 });
 
-// ADD SERVER - OVDJE DODAJEMO BROADCAST
+// ADD SERVER + BROADCAST
 app.post('/add-server', async (req, res) => {
-  console.log("[ADD] Primljen zahtjev!", req.body);
+  console.log("[ADD] Primljen zahtjev sa", req.body.brainrots ? req.body.brainrots.length : 0, "brainrota");
+
   const jobId = req.body.jobId;
   const brainrots = req.body.brainrots || [];
 
@@ -64,12 +65,10 @@ app.post('/add-server', async (req, res) => {
     scannedServers[jobId] = Math.floor(Date.now() / 1000);
   }
 
-  // VAŽNO: Broadcast prema AutoJoineru
+  // VAŽNO: Broadcast za Pulse Joiner
   if (brainrots.length > 0) {
     broadcastNewServer({
-      jobid: jobId,
-      name: brainrots[0].name || "Unknown",
-      money: brainrots[0].gen || "0",
+      jobId: jobId,
       brainrots: brainrots
     });
   }
@@ -91,12 +90,10 @@ app.get('/scanner-list', (req, res) => {
   res.json({ usernames: [] });
 });
 
-// WebSocket
 wss.on('connection', (ws) => {
-  console.log('✅ WebSocket klijent spojen (Pulse Joiner)');
+  console.log('✅ Pulse Joiner spojen');
 });
 
 server.listen(PORT, () => {
   console.log(`✅ Backend radi na portu ${PORT}`);
-  console.log(`🔗 WebSocket URL: wss://brainrot-api-render.onrender.com`);
 });
